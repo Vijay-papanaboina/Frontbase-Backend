@@ -1,0 +1,44 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js",
+    "dev": "concurrently \"nodemon --legacy-watch --ignore uploads/ server.js\" \"ngrok http --domain=barely-humane-parakeet.ngrok-free.app 3001\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.832.0",
+    "@octokit/app": "^16.0.1",
+    "@octokit/webhooks": "^14.0.2",
+    "axios": "^1.10.0",
+    "better-sqlite3": "^11.10.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "drizzle-orm": "^0.44.2",
+    "express": "^5.1.0",
+    "fs-extra": "^11.3.0",
+    "jsonwebtoken": "^9.0.2",
+    "mime": "^4.0.7",
+    "multer": "^2.0.1",
+    "nodemon": "^3.1.10",
+    "pg": "^8.16.2",
+    "pg-hstore": "^2.3.4",
+    "postgres": "^3.4.7",
+    "sequelize": "^6.37.7",
+    "winston": "^3.17.0",
+    "yauzl": "^3.2.0",
+    "yauzl-promise": "^4.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0",
+    "drizzle-kit": "^0.18.1",
+    "sequelize-cli": "^6.6.3"
+  }
+}
