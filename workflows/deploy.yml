@@ -29,6 +29,8 @@ jobs:
         run: |
           curl -X POST {{BACKEND_URL}}/api/upload \
             -F "file=@dist.zip" \
+            -F "projectSlug={{PROJECT_SLUG}}" \
+            -F "ownerLogin={{OWNER_LOGIN}}" \
             -F "repoName={{REPO_NAME}}" \
             -F "userEmail={{USER_EMAIL}}" \
             -F "githubId={{GITHUB_ID}}"

@@ -3,6 +3,7 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 
+
 export const getRepos = async (req, res) => {
   try {
     // Get user's GitHub access token from the database
@@ -244,6 +245,10 @@ export const setupRepo = async (req, res) => {
       repo = repoResult.rows[0];
     }
 
+    const projectSlug = `${repo.ownerLogin}-${repo.repoName}`;
+
+
+
     // Fetch repository details from GitHub API
     console.log(`Checking repository: ${repo.ownerLogin}/${repo.repoName}`);
     const urlWithParams5 = new URL(
@@ -293,6 +298,8 @@ export const setupRepo = async (req, res) => {
     // Replace placeholders
     deployYamlContent = deployYamlContent
       .replace(/{{BACKEND_URL}}/g, process.env.BACKEND_URL)
+      .replace(/{{PROJECT_SLUG}}/g, projectSlug)
+      .replace(/{{OWNER_LOGIN}}/g, repo.ownerLogin)
       .replace(/{{REPO_NAME}}/g, repo.repoName)
       .replace(/{{USER_EMAIL}}/g, userEmail)
       .replace(/{{GITHUB_ID}}/g, githubId);
@@ -523,3 +530,45 @@ export const setupRepo = async (req, res) => {
     });
   }
 };
+
+
+
+
+
+
+
+// warning: don't delete the code below or uncomment it or include it in the code
+
+
+    // const r2Path = `${repo.ownerLogin}/${repo.repoName}`;
+
+    // try {
+    //   const command = new PutObjectCommand({
+    //     Bucket: "PROJECT_MAPPINGS",
+    //     Key: projectSlug,
+    //     Body: JSON.stringify({ r2Path }),
+    //   });
+    //   await S3.send(command);
+    // } catch (err) {
+    //   console.error("Failed to update KV store", err);
+    //   // Decide if you should fail the request or just log the error
+    //   // For now, just logging
+    // }
+
+
+
+
+    // import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+
+    // const cloudflareAccountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+    // const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+    // const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+
+    // const S3 = new S3Client({
+    //   region: "auto",
+    //   endpoint: `https://kv.Cloudflare.com`,
+    //   credentials: {
+    //     accessKeyId: accessKeyId,
+    //     secretAccessKey: secretAccessKey,
+    //   },
+    // });

@@ -45,19 +45,21 @@ export const uploadProject = async (req, res) => {
   console.log("req.params", req.params);
 
   const zipFilePath = req.file.path;
-  const { repoName, userEmail, githubId } = req.body;
+  const { projectSlug, userEmail, githubId, ownerLogin, repoName } = req.body;
   console.log(
-    `Upload request for repo: ${repoName}, userEmail: ${userEmail}, githubId: ${githubId}`
+    `Upload request for project: ${projectSlug}, userEmail: ${userEmail}, githubId: ${githubId}`
   );
 
-  if (!repoName) {
+  if (!projectSlug || !ownerLogin || !repoName) {
     await fs.rm(zipFilePath, { force: true });
     return res.status(400).json({
-      message: "Repository name (repoName) not provided in form data.",
+      message:
+        "projectSlug, ownerLogin, or repoName not provided in form data.",
     });
   }
 
-  const extractPath = path.join("uploads", repoName);
+  const extractPath = path.join("uploads", projectSlug);
+  const r2PathPrefix = path.join(ownerLogin, repoName);
 
   try {
     await fs.mkdir(extractPath, { recursive: true });
@@ -95,7 +97,7 @@ export const uploadProject = async (req, res) => {
         if (entry.isDirectory()) {
           await uploadDir(localPath, r2SubPath);
         } else {
-          await uploadToR2(localPath, `${repoName}/${r2SubPath}`);
+          await uploadToR2(localPath, `${r2PathPrefix}/${r2SubPath}`);
         }
       }
     };
