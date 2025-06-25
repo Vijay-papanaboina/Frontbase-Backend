@@ -3,7 +3,6 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 
-
 export const getRepos = async (req, res) => {
   try {
     // Get user's GitHub access token from the database
@@ -32,20 +31,23 @@ export const getRepos = async (req, res) => {
     });
     const data = await response1.json();
 
-    // Fetch injected status for each repo from your DB
+    // Fetch injected status and deployStatus for each repo from your DB
     const dbRepos = await db.query(
-      'SELECT "repoId", "deployYmlInjected" FROM repositories WHERE "userId" = $1',
+      'SELECT "repoId", "deployYmlInjected", "deployStatus" FROM repositories WHERE "userId" = $1',
       [req.user.userId]
     );
     const injectedMap = {};
+    const statusMap = {};
     dbRepos.rows.forEach((r) => {
       injectedMap[r.repoId] = r.deployYmlInjected;
+      statusMap[r.repoId] = r.deployStatus;
     });
 
-    // Attach deployYmlInjected to each repo
+    // Attach deployYmlInjected and deployStatus to each repo
     const reposWithStatus = data.map((repo) => ({
       ...repo,
       deployYmlInjected: injectedMap[repo.id] || false,
+      deployStatus: statusMap[repo.id] || "not-deployed",
     }));
 
     res.json({ repos: reposWithStatus });
@@ -197,7 +199,7 @@ export const getDeployments = async (req, res) => {
 
 export const setupRepo = async (req, res) => {
   const repoId = req.params.repo_id;
-  const { repoName, ownerLogin } = req.body || {};
+  const { repoName, ownerLogin, envVars } = req.body || {};
   if (!repoName || !ownerLogin) {
     return res
       .status(400)
@@ -207,7 +209,7 @@ export const setupRepo = async (req, res) => {
   try {
     // Get user's GitHub access token from the database
     const userResult = await db.query(
-      'SELECT "githubAccessToken", "githubId", email FROM users WHERE id = $1',
+      'SELECT "githubAccessToken", "githubId", email, id FROM users WHERE id = $1',
       [req.user.userId]
     );
 
@@ -220,6 +222,7 @@ export const setupRepo = async (req, res) => {
 
     const userEmail = user.email;
     const githubId = user.githubId;
+    const userId = user.id;
 
     if (!userEmail || !githubId) {
       return res
@@ -246,8 +249,6 @@ export const setupRepo = async (req, res) => {
     }
 
     const projectSlug = `${repo.ownerLogin}-${repo.repoName}`;
-
-
 
     // Fetch repository details from GitHub API
     console.log(`Checking repository: ${repo.ownerLogin}/${repo.repoName}`);
@@ -515,11 +516,29 @@ export const setupRepo = async (req, res) => {
       throw new Error("Could not find the workflow ID after several attempts.");
     }
 
-    // Update database to mark deploy.yml as injected and save workflow ID
+    // Update database to mark deploy.yml as injected, save workflow ID, and set deployStatus to 'deployed'
     await db.query(
-      'UPDATE repositories SET "deployYmlInjected" = TRUE, "deployYmlWorkflowId" = $1 WHERE "repoId" = $2',
-      [workflowId, repoId]
+      'UPDATE repositories SET "deployYmlInjected" = TRUE, "deployYmlWorkflowId" = $1, "deployStatus" = $2 WHERE "repoId" = $3',
+      [workflowId, "deployed", repoId]
     );
+
+    // --- ENV VARS HANDLING ---
+    if (Array.isArray(envVars)) {
+      // Remove existing env vars for this user/repo
+      await db.query(
+        'DELETE FROM repo_env_vars WHERE "userId" = $1 AND "repoId" = $2',
+        [userId, repoId]
+      );
+      // Insert new env vars
+      for (const env of envVars) {
+        if (env.key && env.key.trim() !== "") {
+          await db.query(
+            'INSERT INTO repo_env_vars ("userId", "repoId", "key", "value") VALUES ($1, $2, $3, $4)',
+            [userId, repoId, env.key, env.value]
+          );
+        }
+      }
+    }
 
     res.status(200).json({ message: "Deploy workflow setup complete." });
   } catch (error) {
@@ -531,44 +550,34 @@ export const setupRepo = async (req, res) => {
   }
 };
 
-
-
-
-
-
-
 // warning: don't delete the code below or uncomment it or include it in the code
 
+// const r2Path = `${repo.ownerLogin}/${repo.repoName}`;
 
-    // const r2Path = `${repo.ownerLogin}/${repo.repoName}`;
+// try {
+//   const command = new PutObjectCommand({
+//     Bucket: "PROJECT_MAPPINGS",
+//     Key: projectSlug,
+//     Body: JSON.stringify({ r2Path }),
+//   });
+//   await S3.send(command);
+// } catch (err) {
+//   console.error("Failed to update KV store", err);
+//   // Decide if you should fail the request or just log the error
+//   // For now, just logging
+// }
 
-    // try {
-    //   const command = new PutObjectCommand({
-    //     Bucket: "PROJECT_MAPPINGS",
-    //     Key: projectSlug,
-    //     Body: JSON.stringify({ r2Path }),
-    //   });
-    //   await S3.send(command);
-    // } catch (err) {
-    //   console.error("Failed to update KV store", err);
-    //   // Decide if you should fail the request or just log the error
-    //   // For now, just logging
-    // }
+// import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
+// const cloudflareAccountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+// const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+// const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
 
-
-
-    // import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-
-    // const cloudflareAccountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-    // const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
-    // const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
-
-    // const S3 = new S3Client({
-    //   region: "auto",
-    //   endpoint: `https://kv.Cloudflare.com`,
-    //   credentials: {
-    //     accessKeyId: accessKeyId,
-    //     secretAccessKey: secretAccessKey,
-    //   },
-    // });
+// const S3 = new S3Client({
+//   region: "auto",
+//   endpoint: `https://kv.Cloudflare.com`,
+//   credentials: {
+//     accessKeyId: accessKeyId,
+//     secretAccessKey: secretAccessKey,
+//   },
+// });

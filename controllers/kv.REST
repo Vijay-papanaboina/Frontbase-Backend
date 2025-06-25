@@ -1,0 +1,6 @@
+PUT https://api.cloudflare.com/client/v4/accounts/1efa42b1f82d5cee4ba1487cc02c4d75/storage/kv/namespaces/652095ec9aae4b2b806ca93edfd75412/values/test
+Content-Type: text/plain
+X-Auth-Email: vijaypapanaboina3@gmail.com
+X-Auth-Key: 3db706b0de88f298dd31eb67b7dc53fc6c143
+
+working

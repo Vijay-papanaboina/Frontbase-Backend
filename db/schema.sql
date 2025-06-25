@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS "repositories" (
     "deployYmlInjected" boolean DEFAULT false,
     "createdAt" timestamp DEFAULT now(),
     "updatedAt" timestamp DEFAULT now(),
+    "deployStatus" text DEFAULT 'not-deployed',
     CONSTRAINT "repositories_userId_users_id_fk" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE
 );
 
@@ -46,4 +47,17 @@ CREATE TABLE IF NOT EXISTS "deployments" (
     "createdAt" timestamp DEFAULT now(),
     "updatedAt" timestamp DEFAULT now(),
     CONSTRAINT "deployments_repoId_repositories_repoId_fk" FOREIGN KEY ("repoId") REFERENCES "repositories"("repoId") ON DELETE CASCADE
+);
+
+-- ENVIRONMENT VARIABLES TABLE
+CREATE TABLE IF NOT EXISTS "repo_env_vars" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "userId" uuid NOT NULL,
+    "repoId" bigint NOT NULL,
+    "key" text NOT NULL,
+    "value" text NOT NULL,
+    "createdAt" timestamp DEFAULT now(),
+    "updatedAt" timestamp DEFAULT now(),
+    CONSTRAINT "repo_env_vars_userId_users_id_fk" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE,
+    CONSTRAINT "repo_env_vars_repoId_repositories_repoId_fk" FOREIGN KEY ("repoId") REFERENCES "repositories"("repoId") ON DELETE CASCADE
 );

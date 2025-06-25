@@ -35,6 +35,29 @@ async function uploadToR2(filePath, r2Key) {
   }
 }
 
+// Function to set KV mapping in Cloudflare (Global API Key and Email only)
+async function setKVMapping(key, value) {
+  const url = `https://api.cloudflare.com/client/v4/accounts/${process.env.CF_ACCOUNT_ID}/storage/kv/namespaces/${process.env.KV_NAMESPACE_ID}/values/${key}`;
+  if (!(process.env.CF_EMAIL && process.env.CF_API_KEY)) {
+    throw new Error(
+      "No Cloudflare Global API credentials found. Set CF_EMAIL and CF_API_KEY."
+    );
+  }
+  const headers = {
+    "Content-Type": "text/plain",
+    "X-Auth-Email": process.env.CF_EMAIL,
+    "X-Auth-Key": process.env.CF_API_KEY,
+  };
+  const response = await fetch(url, {
+    method: "PUT",
+    headers,
+    body: value,
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to set KV: ${await response.text()}`);
+  }
+}
+
 export const uploadProject = async (req, res) => {
   console.log("Upload request received");
   if (!req.file) {
@@ -104,6 +127,11 @@ export const uploadProject = async (req, res) => {
     };
 
     await uploadDir(distDirPath, distDirPath);
+
+    // Add subdomain-to-path mapping in KV
+    const subdomain = `${ownerLogin}-${repoName}`;
+    const r2Prefix = `${ownerLogin}/${repoName}`;
+    await setKVMapping(subdomain.toLowerCase(), r2Prefix);
 
     res.status(200).json({
       message: "Project deployed successfully!",
