@@ -87,22 +87,23 @@ export const uploadProject = async (req, res) => {
 
     const distDirPath = path.join(extractPath, "dist");
 
-    const uploadDir = async (dirPath, r2PathPrefix = "") => {
+    const uploadDir = async (dirPath, distRoot) => {
       const entries = await fs.readdir(dirPath, { withFileTypes: true });
       for (const entry of entries) {
         const localPath = path.join(dirPath, entry.name);
-        const r2SubPath = path
-          .join(r2PathPrefix, entry.name)
-          .replace(/\\\\/g, "/");
         if (entry.isDirectory()) {
-          await uploadDir(localPath, r2SubPath);
+          await uploadDir(localPath, distRoot);
         } else {
-          await uploadToR2(localPath, `${r2PathPrefix}/${r2SubPath}`);
+          const relPath = path
+            .relative(distRoot, localPath)
+            .replace(/\\/g, "/");
+          const r2Key = `${ownerLogin}/${repoName}/${relPath}`;
+          await uploadToR2(localPath, r2Key);
         }
       }
     };
 
-    await uploadDir(distDirPath);
+    await uploadDir(distDirPath, distDirPath);
 
     res.status(200).json({
       message: "Project deployed successfully!",

@@ -20,7 +20,7 @@ const __dirname = path.dirname(__filename);
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   "http://localhost:5173", // Vite default dev port
-  "https://dassie-worthy-ox.ngrok-free.app",
+  "https://frontends.teakwoodfurniturepoint.online",
 ];
 
 app.use(
@@ -71,7 +71,7 @@ app.use((err, req, res, next) => {
   console.error(err.message, err);
   res.status(500).send("Something broke!");
 });
-   
+
 // Handle unhandled promise rejections
 process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);

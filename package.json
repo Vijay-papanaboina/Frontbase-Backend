@@ -6,10 +6,10 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
-    "dev": "concurrently \"nodemon --ignore uploads/ server.js\" \"ngrok http --domain=barely-humane-parakeet.ngrok-free.app 3000\""
+    "dev": "nodemon --ignore uploads/ server.js"
   },
   "keywords": [],
-  "author": "",
+  "author": "", 
   "license": "ISC",
   "description": "",
   "dependencies": {
