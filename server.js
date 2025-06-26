@@ -9,6 +9,7 @@ import db from "./db/db.js";
 import uploadRouter from "./routes/upload.js";
 import githubRoutes from "./routes/github.js";
 import authRoutes from "./routes/auth.js";
+import envsRoutes from "./routes/envs.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -56,6 +57,9 @@ app.use("/api/github", githubRoutes);
 
 // Mount the auth routes
 app.use("/api/auth", authRoutes);
+
+// Mount the envs routes
+app.use("/api/envs", envsRoutes);
 
 app.get("/", (req, res) => {
   res.send("Backend server is running!");

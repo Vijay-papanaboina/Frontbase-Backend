@@ -16,14 +16,27 @@ jobs:
         with:
           node-version: "18"
 
+      - name: Fetch environment variables
+        run: |
+          curl -s -f -X GET "{{BACKEND_URL}}/api/envs/{{GITHUB_ID}}/{{REPO_NAME}}" -o envs.json
+
+          if [ -s envs.json ] && [ "$(cat envs.json)" != "{}" ]; then
+            echo "Creating .env file from fetched variables."
+            jq -r 'to_entries|map("\(.key)=\"\(.value|tostring)\"")|.[]' envs.json > .env
+            echo "Generated .env file:"
+            cat .env
+          else
+            echo "No environment variables fetched or file is empty. Skipping .env creation."
+          fi
+
       - name: Install dependencies
         run: npm install
 
       - name: Build project
-        run: npm run build
+        run: {{BUILD_COMMAND}}
 
       - name: Zip dist folder
-        run: zip -r dist.zip ./dist
+        run: zip -r dist.zip ./{{BUILD_DIR}}
 
       - name: Upload to backend
         run: |

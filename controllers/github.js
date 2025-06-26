@@ -199,7 +199,14 @@ export const getDeployments = async (req, res) => {
 
 export const setupRepo = async (req, res) => {
   const repoId = req.params.repo_id;
-  const { repoName, ownerLogin, envVars } = req.body || {};
+  const {
+    repoName,
+    ownerLogin,
+    envVars,
+    framework,
+    buildCommand,
+    outputFolder,
+  } = req.body || {};
   if (!repoName || !ownerLogin) {
     return res
       .status(400)
@@ -304,6 +311,13 @@ export const setupRepo = async (req, res) => {
       .replace(/{{REPO_NAME}}/g, repo.repoName)
       .replace(/{{USER_EMAIL}}/g, userEmail)
       .replace(/{{GITHUB_ID}}/g, githubId);
+
+    // Inject build command and output folder
+    const buildCmd = buildCommand || "npm run build";
+    const outFolder = outputFolder || "dist";
+    deployYamlContent = deployYamlContent
+      .replace(/{{BUILD_COMMAND}}/g, buildCmd)
+      .replace(/{{BUILD_DIR}}/g, outFolder);
 
     const encodedContent = Buffer.from(deployYamlContent).toString("base64");
 

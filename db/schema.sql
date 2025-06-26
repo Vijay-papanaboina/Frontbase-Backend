@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS "repositories" (
     "ownerAvatarUrl" text,
     "deployYmlWorkflowId" bigint,
     "deployYmlInjected" boolean DEFAULT false,
+    "projectUrl" text,
     "createdAt" timestamp DEFAULT now(),
     "updatedAt" timestamp DEFAULT now(),
     "deployStatus" text DEFAULT 'not-deployed',
@@ -61,3 +62,5 @@ CREATE TABLE IF NOT EXISTS "repo_env_vars" (
     CONSTRAINT "repo_env_vars_userId_users_id_fk" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE,
     CONSTRAINT "repo_env_vars_repoId_repositories_repoId_fk" FOREIGN KEY ("repoId") REFERENCES "repositories"("repoId") ON DELETE CASCADE
 );
+
+
