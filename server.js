@@ -66,9 +66,9 @@ app.get("/", (req, res) => {
   console.log("Root endpoint accessed.");
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// app.listen(PORT, () => {
+//   console.log(`Server running on port ${PORT}`);
+// });
 
 // Global error handling middleware
 app.use((err, req, res, next) => {
