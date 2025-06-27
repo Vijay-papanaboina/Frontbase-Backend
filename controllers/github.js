@@ -2,6 +2,74 @@ import db from "../db/db.js";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import jwt from "jsonwebtoken";
+import sodium from "libsodium-wrappers";
+
+const JWT_SECRET = process.env.JWT_SECRET;
+
+async function injectRepoSecret(
+  owner,
+  repo,
+  secretName,
+  secretValue,
+  githubToken
+) {
+  await sodium.ready;
+
+  // 1. Get GitHub repo public key
+  const keyRes = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/actions/secrets/public-key`,
+    {
+      headers: {
+        Authorization: `Bearer ${githubToken}`,
+        Accept: "application/vnd.github+json",
+      },
+    }
+  );
+
+  if (!keyRes.ok) {
+    const err = await keyRes.text();
+    throw new Error(`Failed to get public key for ${owner}/${repo}: ${err}`);
+  }
+
+  const { key_id, key } = await keyRes.json();
+
+  // 2. Encrypt the secret using libsodium
+  const publicKeyBytes = sodium.from_base64(
+    key,
+    sodium.base64_variants.ORIGINAL
+  );
+  const secretBytes = sodium.from_string(secretValue);
+  const encryptedBytes = sodium.crypto_box_seal(secretBytes, publicKeyBytes);
+  const encryptedValue = sodium.to_base64(
+    encryptedBytes,
+    sodium.base64_variants.ORIGINAL
+  );
+
+  // 3. Upload the encrypted secret to GitHub
+  const putRes = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/actions/secrets/${secretName}`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${githubToken}`,
+        Accept: "application/vnd.github+json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        encrypted_value: encryptedValue,
+        key_id: key_id,
+      }),
+    }
+  );
+
+  if (!putRes.ok) {
+    const err = await putRes.text();
+    throw new Error(`Failed to set secret on ${owner}/${repo}: ${err}`);
+  }
+
+  console.log(`✅ Secret "${secretName}" successfully set on ${owner}/${repo}`);
+}
 
 export const getRepos = async (req, res) => {
   try {
@@ -292,6 +360,43 @@ export const setupRepo = async (req, res) => {
       throw new Error(`No push permission to repository ${repoData.full_name}`);
     }
 
+    // --- SECRET INJECTION ---
+    console.log(
+      `Generating and injecting secret for ${repo.ownerLogin}/${repo.repoName}`
+    );
+    // This token is long-lived and scoped to the repo.
+    // For production, consider a more robust key rotation or OIDC strategy.
+    const repoJwt = jwt.sign({ repoId: repoId, userId: userId }, JWT_SECRET, {
+      expiresIn: "10y",
+    });
+
+    await injectRepoSecret(
+      repo.ownerLogin,
+      repo.repoName,
+      "ENV_ACCESS_TOKEN",
+      repoJwt,
+      user.githubAccessToken
+    );
+    console.log(`JWT secret injected successfully.`);
+
+    // --- ENV VARS HANDLING ---
+    if (Array.isArray(envVars)) {
+      // Remove existing env vars for this user/repo
+      await db.query(
+        'DELETE FROM repo_env_vars WHERE "userId" = $1 AND "repoId" = $2',
+        [userId, repoId]
+      );
+      // Insert new env vars
+      for (const env of envVars) {
+        if (env.key && env.key.trim() !== "") {
+          await db.query(
+            'INSERT INTO repo_env_vars ("userId", "repoId", "key", "value") VALUES ($1, $2, $3, $4)',
+            [userId, repoId, env.key, env.value]
+          );
+        }
+      }
+    }
+
     // Read workflow template
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
@@ -536,24 +641,6 @@ export const setupRepo = async (req, res) => {
       [workflowId, "deployed", repoId]
     );
 
-    // --- ENV VARS HANDLING ---
-    if (Array.isArray(envVars)) {
-      // Remove existing env vars for this user/repo
-      await db.query(
-        'DELETE FROM repo_env_vars WHERE "userId" = $1 AND "repoId" = $2',
-        [userId, repoId]
-      );
-      // Insert new env vars
-      for (const env of envVars) {
-        if (env.key && env.key.trim() !== "") {
-          await db.query(
-            'INSERT INTO repo_env_vars ("userId", "repoId", "key", "value") VALUES ($1, $2, $3, $4)',
-            [userId, repoId, env.key, env.value]
-          );
-        }
-      }
-    }
-
     res.status(200).json({ message: "Deploy workflow setup complete." });
   } catch (error) {
     console.error("Error setting up deploy workflow:", error);
@@ -563,35 +650,3 @@ export const setupRepo = async (req, res) => {
     });
   }
 };
-
-// warning: don't delete the code below or uncomment it or include it in the code
-
-// const r2Path = `${repo.ownerLogin}/${repo.repoName}`;
-
-// try {
-//   const command = new PutObjectCommand({
-//     Bucket: "PROJECT_MAPPINGS",
-//     Key: projectSlug,
-//     Body: JSON.stringify({ r2Path }),
-//   });
-//   await S3.send(command);
-// } catch (err) {
-//   console.error("Failed to update KV store", err);
-//   // Decide if you should fail the request or just log the error
-//   // For now, just logging
-// }
-
-// import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-
-// const cloudflareAccountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-// const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
-// const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
-
-// const S3 = new S3Client({
-//   region: "auto",
-//   endpoint: `https://kv.Cloudflare.com`,
-//   credentials: {
-//     accessKeyId: accessKeyId,
-//     secretAccessKey: secretAccessKey,
-//   },
-// });

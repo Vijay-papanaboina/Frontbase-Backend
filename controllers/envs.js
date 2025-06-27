@@ -1,31 +1,35 @@
 import db from "../db/db.js";
+import jwt from "jsonwebtoken";
 
-// A more secure approach would be to use OIDC tokens from GitHub Actions.
-// This is a simpler implementation using a shared secret.
-const GITHUB_ACTIONS_SECRET = process.env.GITHUB_ACTIONS_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET;
 
 export const getEnvs = async (req, res) => {
-  // TODO: Re-enable authentication for production
-  // const authHeader = req.headers.authorization;
-  // if (!authHeader || !authHeader.startsWith("Bearer ")) {
-  //   return res.status(401).json({ message: "Unauthorized: Missing token." });
-  // }
+  // Accept JWT in Authorization header or as a POST body param
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith("Bearer ")
+    ? authHeader.split(" ")[1]
+    : req.body?.token;
+  if (!token) {
+    return res.status(401).json({ message: "Unauthorized: Missing token." });
+  }
 
-  // const token = authHeader.split(" ")[1];
-  // if (token !== GITHUB_ACTIONS_SECRET) {
-  //   return res.status(403).json({ message: "Forbidden: Invalid token." });
-  // }
+  let payload;
+  try {
+    payload = jwt.verify(token, JWT_SECRET);
+  } catch (err) {
+    return res.status(403).json({ message: "Forbidden: Invalid token." });
+  }
 
-  const { githubId, repoName } = req.params;
+  // Extract repo info from JWT
+  const { repoId } = payload;
+  if (!repoId) {
+    return res.status(400).json({ message: "Invalid token payload." });
+  }
 
   try {
     const envsResult = await db.query(
-      `SELECT v.key, v.value
-       FROM repo_env_vars v
-       JOIN repositories r ON v."repoId" = r."repoId"
-       JOIN users u ON r."userId" = u.id
-       WHERE u."githubId" = $1 AND r."repoName" = $2`,
-      [githubId, repoName]
+      `SELECT key, value FROM repo_env_vars WHERE "repoId" = $1`,
+      [repoId]
     );
 
     const envs = envsResult.rows.reduce((acc, row) => {

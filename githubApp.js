@@ -179,7 +179,10 @@ export default app;
 async function injectSecret(owner, repo, secretName, secretValue) {
   // 1. Get the public key for the repo
   const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
-  const { data: publicKey } = await octokit.actions.getRepoPublicKey({
+
+Security concern: Avoid hardcoded authentication tokens.
+
+Using process.env.GITHUB_TOKEN bypasses the existing i  const { data: publicKey } = await octokit.actions.getRepoPublicKey({
     owner,
     repo,
   });
