@@ -30,7 +30,6 @@
     "pg": "^8.16.2",
     "pg-hstore": "^2.3.4",
     "postgres": "^3.4.7",
-    "tweetsodium": "^0.0.4",
     "winston": "^3.17.0",
     "yauzl": "^3.2.0",
     "yauzl-promise": "^4.0.0"

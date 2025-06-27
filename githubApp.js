@@ -1,7 +1,7 @@
 import { App } from "@octokit/app";
 import db from "./db/db.js";
 import { Octokit } from "@octokit/core";
-import sodium from "tweetsodium";
+import sodium from "libsodium-wrappers";
 
 const app = new App({
   appId: process.env.GITHUB_APP_ID,
@@ -179,18 +179,16 @@ export default app;
 async function injectSecret(owner, repo, secretName, secretValue) {
   // 1. Get the public key for the repo
   const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
-
-Security concern: Avoid hardcoded authentication tokens.
-
-Using process.env.GITHUB_TOKEN bypasses the existing i  const { data: publicKey } = await octokit.actions.getRepoPublicKey({
+  const { data: publicKey } = await octokit.actions.getRepoPublicKey({
     owner,
     repo,
   });
 
   // 2. Encrypt the secret value
+  await sodium.ready;
   const key = Buffer.from(publicKey.key, "base64");
   const value = Buffer.from(secretValue);
-  const encryptedBytes = sodium.seal(value, key);
+  const encryptedBytes = sodium.crypto_box_seal(value, key);
   const encryptedValue = Buffer.from(encryptedBytes).toString("base64");
 
   // 3. Create or update the secret

@@ -18,9 +18,7 @@ jobs:
 
       - name: Fetch environment variables
         run: |
-          curl -s -f -X POST "{{BACKEND_URL}}/api/envs" \
-            -H "Authorization: Bearer ${{ secrets.ENV_ACCESS_TOKEN }}" \
-            -o envs.json
+          curl -s -f -X GET "{{BACKEND_URL}}/api/envs/{{GITHUB_ID}}/{{REPO_NAME}}" -H "Authorization: Bearer ${{ secrets.ENV_ACCESS_TOKEN }}" -o envs.json
 
           if [ -s envs.json ] && [ "$(cat envs.json)" != "{}" ]; then
             echo "Creating .env file from fetched variables."
@@ -35,8 +33,7 @@ jobs:
         run: npm install
 
       - name: Build project
-        run: { { BUILD_COMMAND } }
-
+        run: {{BUILD_COMMAND}}
       - name: Zip dist folder
         run: zip -r dist.zip ./{{BUILD_DIR}}
 

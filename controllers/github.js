@@ -305,30 +305,20 @@ export const setupRepo = async (req, res) => {
         .json({ message: "User email or githubId not found." });
     }
 
-    // Save repo in DB if it doesn't exist
-    let repoResult = await db.query(
-      'SELECT * FROM repositories WHERE "repoId" = $1',
-      [repoId]
+    // --- 1. CREATE REPO RECORD (OR IGNORE IF EXISTS) ---
+    // Create the repo record first with a 'pending' status.
+    // This prevents foreign key violations and misleading UI states.
+    await db.query(
+      `INSERT INTO repositories ("repoId", "repoName", "ownerLogin", "userId", "deployYmlInjected", "deployStatus")
+       VALUES ($1, $2, $3, $4, FALSE, 'pending')
+       ON CONFLICT ("repoId") DO NOTHING`,
+      [repoId, repoName, ownerLogin, userId]
     );
-    let repo = repoResult.rows[0];
-    if (!repo) {
-      await db.query(
-        'INSERT INTO repositories ("repoId", "repoName", "ownerLogin", "userId") VALUES ($1, $2, $3, $4)',
-        [repoId, repoName, ownerLogin, req.user.userId]
-      );
-      repoResult = await db.query(
-        'SELECT * FROM repositories WHERE "repoId" = $1',
-        [repoId]
-      );
-      repo = repoResult.rows[0];
-    }
-
-    const projectSlug = `${repo.ownerLogin}-${repo.repoName}`;
 
     // Fetch repository details from GitHub API
-    console.log(`Checking repository: ${repo.ownerLogin}/${repo.repoName}`);
+    console.log(`Checking repository: ${ownerLogin}/${repoName}`);
     const urlWithParams5 = new URL(
-      `https://api.github.com/repos/${repo.ownerLogin}/${repo.repoName}`
+      `https://api.github.com/repos/${ownerLogin}/${repoName}`
     );
     const response5 = await fetch(urlWithParams5, {
       method: "GET",
@@ -362,17 +352,16 @@ export const setupRepo = async (req, res) => {
 
     // --- SECRET INJECTION ---
     console.log(
-      `Generating and injecting secret for ${repo.ownerLogin}/${repo.repoName}`
+      `Generating and injecting secret for ${ownerLogin}/${repoName}`
     );
-    // This token is long-lived and scoped to the repo.
-    // For production, consider a more robust key rotation or OIDC strategy.
     const repoJwt = jwt.sign({ repoId: repoId, userId: userId }, JWT_SECRET, {
       expiresIn: "10y",
     });
+    console.log("repoJwt", repoJwt);
 
     await injectRepoSecret(
-      repo.ownerLogin,
-      repo.repoName,
+      ownerLogin,
+      repoName,
       "ENV_ACCESS_TOKEN",
       repoJwt,
       user.githubAccessToken
@@ -411,9 +400,9 @@ export const setupRepo = async (req, res) => {
     // Replace placeholders
     deployYamlContent = deployYamlContent
       .replace(/{{BACKEND_URL}}/g, process.env.BACKEND_URL)
-      .replace(/{{PROJECT_SLUG}}/g, projectSlug)
-      .replace(/{{OWNER_LOGIN}}/g, repo.ownerLogin)
-      .replace(/{{REPO_NAME}}/g, repo.repoName)
+      .replace(/{{PROJECT_SLUG}}/g, `${ownerLogin}-${repoName}`)
+      .replace(/{{OWNER_LOGIN}}/g, ownerLogin)
+      .replace(/{{REPO_NAME}}/g, repoName)
       .replace(/{{USER_EMAIL}}/g, userEmail)
       .replace(/{{GITHUB_ID}}/g, githubId);
 
@@ -430,11 +419,11 @@ export const setupRepo = async (req, res) => {
     let existingFileSha = null;
     const workflowPath = `.github/workflows/deploy.yml`;
     console.log(
-      `Checking for existing workflow at: ${repo.ownerLogin}/${repo.repoName}/${workflowPath}`
+      `Checking for existing workflow at: ${ownerLogin}/${repoName}/${workflowPath}`
     );
 
     const urlWithParams6 = new URL(
-      `https://api.github.com/repos/${repo.ownerLogin}/${repo.repoName}/contents/${workflowPath}`
+      `https://api.github.com/repos/${ownerLogin}/${repoName}/contents/${workflowPath}`
     );
     const response6 = await fetch(urlWithParams6, {
       method: "GET",
@@ -461,7 +450,7 @@ export const setupRepo = async (req, res) => {
     if (existingFileSha) {
       // Update file
       const urlWithParams7 = new URL(
-        `https://api.github.com/repos/${repo.ownerLogin}/${repo.repoName}/contents/${workflowPath}`
+        `https://api.github.com/repos/${ownerLogin}/${repoName}/contents/${workflowPath}`
       );
       const response7 = await fetch(urlWithParams7, {
         method: "PUT",
@@ -483,7 +472,7 @@ export const setupRepo = async (req, res) => {
       }
 
       const data = await response7.json();
-      console.log(`Updated deploy.yml in ${repo.ownerLogin}/${repo.repoName}`);
+      console.log(`Updated deploy.yml in ${ownerLogin}/${repoName}`);
     } else {
       // Create file in two steps: 1. placeholder for folder, 2. actual file
       console.log(
@@ -493,7 +482,7 @@ export const setupRepo = async (req, res) => {
       const placeholderContent = Buffer.from("").toString("base64"); // Empty file
 
       const placeholderUrl = new URL(
-        `https://api.github.com/repos/${repo.ownerLogin}/${repo.repoName}/contents/${placeholderPath}`
+        `https://api.github.com/repos/${ownerLogin}/${repoName}/contents/${placeholderPath}`
       );
 
       const placeholderResponse = await fetch(placeholderUrl, {
@@ -523,15 +512,13 @@ export const setupRepo = async (req, res) => {
       }
       console.log("Directory structure is ready.");
 
-      console.log(
-        `Creating new workflow file for: ${repo.ownerLogin}/${repo.repoName}`
-      );
+      console.log(`Creating new workflow file for: ${ownerLogin}/${repoName}`);
       console.log(
         `Token starts with: ${user.githubAccessToken.substring(0, 10)}...`
       );
 
       const urlWithParams8 = new URL(
-        `https://api.github.com/repos/${repo.ownerLogin}/${repo.repoName}/contents/${workflowPath}`
+        `https://api.github.com/repos/${ownerLogin}/${repoName}/contents/${workflowPath}`
       );
 
       const requestBody = {
@@ -591,9 +578,7 @@ export const setupRepo = async (req, res) => {
         console.log(`Created deploy.yml using fallback method`);
       } else {
         const data = await response8.json();
-        console.log(
-          `Created deploy.yml in ${repo.ownerLogin}/${repo.repoName}`
-        );
+        console.log(`Created deploy.yml in ${ownerLogin}/${repoName}`);
       }
     }
 
@@ -610,7 +595,7 @@ export const setupRepo = async (req, res) => {
       await new Promise((resolve) => setTimeout(resolve, 3000)); // wait 3 seconds
 
       const workflowsResponse = await fetch(
-        `https://api.github.com/repos/${repo.ownerLogin}/${repo.repoName}/actions/workflows`,
+        `https://api.github.com/repos/${ownerLogin}/${repoName}/actions/workflows`,
         {
           headers: {
             authorization: `Bearer ${user.githubAccessToken}`,
@@ -635,7 +620,8 @@ export const setupRepo = async (req, res) => {
       throw new Error("Could not find the workflow ID after several attempts.");
     }
 
-    // Update database to mark deploy.yml as injected, save workflow ID, and set deployStatus to 'deployed'
+    // --- DATABASE UPDATE ---
+    // This is the final step, only run after all GitHub operations are successful.
     await db.query(
       'UPDATE repositories SET "deployYmlInjected" = TRUE, "deployYmlWorkflowId" = $1, "deployStatus" = $2 WHERE "repoId" = $3',
       [workflowId, "deployed", repoId]
