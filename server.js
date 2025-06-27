@@ -62,13 +62,13 @@ app.use("/api/auth", authRoutes);
 app.use("/api/envs", envsRoutes);
 
 app.get("/", (req, res) => {
-  res.send("Backend server is running!");
+  res.status(200).send("Backend server is running!");
   console.log("Root endpoint accessed.");
 });
 
-// app.listen(PORT, () => {
-//   console.log(`Server running on port ${PORT}`);
-// });
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
 
 // Global error handling middleware
 app.use((err, req, res, next) => {
@@ -89,5 +89,3 @@ process.on("uncaughtException", (err) => {
   // Application should exit after logging uncaught exceptions
   process.exit(1);
 });
-
-export default app;
