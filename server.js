@@ -89,3 +89,5 @@ process.on("uncaughtException", (err) => {
   // Application should exit after logging uncaught exceptions
   process.exit(1);
 });
+
+export default app;
