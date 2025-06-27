@@ -201,7 +201,4 @@ async function injectSecret(owner, repo, secretName, secretValue) {
   });
 }
 
-// Usage
-injectSecret("OWNER", "REPO", "mysecret", "your_secret_value_here")
-  .then(() => console.log("Secret injected!"))
-  .catch(console.error);
+

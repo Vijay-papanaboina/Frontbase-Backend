@@ -336,14 +336,10 @@ export const setupRepo = async (req, res) => {
     }
 
     const repoData = await response5.json();
-    console.log(
-      `Repository verified: ${repoData.full_name}, permissions:`,
-      repoData.permissions
-    );
+
 
     // Check token scopes
     const scopeHeaders = response5.headers.get("x-oauth-scopes");
-    console.log(`Token scopes: ${scopeHeaders}`);
 
     // Verify we can write to the repository
     if (!repoData.permissions || !repoData.permissions.push) {
@@ -351,14 +347,10 @@ export const setupRepo = async (req, res) => {
     }
 
     // --- SECRET INJECTION ---
-    console.log(
-      `Generating and injecting secret for ${ownerLogin}/${repoName}`
-    );
-    const repoJwt = jwt.sign({ repoId: repoId, userId: userId }, JWT_SECRET, {
-      expiresIn: "10y",
-    });
-    console.log("repoJwt", repoJwt);
 
+    const repoJwt = jwt.sign({ repoId: repoId, userId: userId }, JWT_SECRET, {
+      expiresIn: "1y", // Consider implementing token refresh mechanism
+    });
     await injectRepoSecret(
       ownerLogin,
       repoName,
@@ -366,7 +358,6 @@ export const setupRepo = async (req, res) => {
       repoJwt,
       user.githubAccessToken
     );
-    console.log(`JWT secret injected successfully.`);
 
     // --- ENV VARS HANDLING ---
     if (Array.isArray(envVars)) {
@@ -418,9 +409,6 @@ export const setupRepo = async (req, res) => {
     // Check if workflow file already exists
     let existingFileSha = null;
     const workflowPath = `.github/workflows/deploy.yml`;
-    console.log(
-      `Checking for existing workflow at: ${ownerLogin}/${repoName}/${workflowPath}`
-    );
 
     const urlWithParams6 = new URL(
       `https://api.github.com/repos/${ownerLogin}/${repoName}/contents/${workflowPath}`
@@ -433,15 +421,11 @@ export const setupRepo = async (req, res) => {
       },
     });
 
-    console.log(`Check workflow response status: ${response6.status}`);
-
     if (response6.ok) {
       const data = await response6.json();
       existingFileSha = data.sha;
-      console.log(`Found existing workflow file with SHA: ${existingFileSha}`);
     } else if (response6.status !== 404) {
       const errorData = await response6.json();
-      console.log(`GitHub API error:`, errorData);
       throw new Error(`GitHub API error: ${errorData.message}`);
     } else {
       console.log(`Workflow file doesn't exist (404), will create new one`);
@@ -472,12 +456,8 @@ export const setupRepo = async (req, res) => {
       }
 
       const data = await response7.json();
-      console.log(`Updated deploy.yml in ${ownerLogin}/${repoName}`);
     } else {
       // Create file in two steps: 1. placeholder for folder, 2. actual file
-      console.log(
-        "Workflow file does not exist. Ensuring directory structure first."
-      );
       const placeholderPath = ".github/workflows/.gitkeep";
       const placeholderContent = Buffer.from("").toString("base64"); // Empty file
 
@@ -510,12 +490,6 @@ export const setupRepo = async (req, res) => {
           );
         }
       }
-      console.log("Directory structure is ready.");
-
-      console.log(`Creating new workflow file for: ${ownerLogin}/${repoName}`);
-      console.log(
-        `Token starts with: ${user.githubAccessToken.substring(0, 10)}...`
-      );
 
       const urlWithParams8 = new URL(
         `https://api.github.com/repos/${ownerLogin}/${repoName}/contents/${workflowPath}`
@@ -526,8 +500,6 @@ export const setupRepo = async (req, res) => {
         content: encodedContent,
         branch: "main", // Explicitly specify the branch
       };
-
-      console.log(`Request URL: ${urlWithParams8.toString()}`);
 
       const response8 = await fetch(urlWithParams8, {
         method: "PUT",
@@ -540,11 +512,8 @@ export const setupRepo = async (req, res) => {
         body: JSON.stringify(requestBody),
       });
 
-      console.log(`Create file response status: ${response8.status}`);
-
       if (!response8.ok) {
         const errorData = await response8.json();
-        console.log(`GitHub API error response:`, errorData);
 
         // If still failing, try without specifying branch
         const fallbackBody = {
@@ -552,7 +521,6 @@ export const setupRepo = async (req, res) => {
           content: encodedContent,
         };
 
-        console.log(`Trying fallback without branch specification...`);
         const fallbackResponse = await fetch(urlWithParams8, {
           method: "PUT",
           headers: {
@@ -566,7 +534,6 @@ export const setupRepo = async (req, res) => {
 
         if (!fallbackResponse.ok) {
           const fallbackError = await fallbackResponse.json();
-          console.log(`Fallback also failed:`, fallbackError);
           throw new Error(
             `Failed to create deploy.yml: ${
               errorData.message || "Unknown error"
@@ -575,10 +542,8 @@ export const setupRepo = async (req, res) => {
         }
 
         const fallbackData = await fallbackResponse.json();
-        console.log(`Created deploy.yml using fallback method`);
       } else {
         const data = await response8.json();
-        console.log(`Created deploy.yml in ${ownerLogin}/${repoName}`);
       }
     }
 
@@ -591,7 +556,6 @@ export const setupRepo = async (req, res) => {
 
     while (!workflowId && attempts < maxAttempts) {
       attempts++;
-      console.log(`Attempt ${attempts} to fetch workflow ID...`);
       await new Promise((resolve) => setTimeout(resolve, 3000)); // wait 3 seconds
 
       const workflowsResponse = await fetch(
@@ -611,7 +575,6 @@ export const setupRepo = async (req, res) => {
         );
         if (targetWorkflow) {
           workflowId = targetWorkflow.id;
-          console.log(`Found workflow ID: ${workflowId}`);
         }
       }
     }
