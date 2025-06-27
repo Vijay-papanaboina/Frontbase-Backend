@@ -1,6 +1,7 @@
 import { App } from "@octokit/app";
 import db from "./db/db.js";
 import { Octokit } from "@octokit/core";
+import sodium from "tweetsodium";
 
 const app = new App({
   appId: process.env.GITHUB_APP_ID,
@@ -75,7 +76,7 @@ app.webhooks.on("installation.deleted", async ({ payload }) => {
   }
 });
 
-// Event listener for when new repositories are added to an installation 
+// Event listener for when new repositories are added to an installation
 app.webhooks.on("installation_repositories.added", async ({ payload }) => {
   const { installation, repositories_added } = payload;
   console.log(
@@ -174,3 +175,32 @@ export const getOctokit = async (githubUserId) => {
 };
 
 export default app;
+
+async function injectSecret(owner, repo, secretName, secretValue) {
+  // 1. Get the public key for the repo
+  const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+  const { data: publicKey } = await octokit.actions.getRepoPublicKey({
+    owner,
+    repo,
+  });
+
+  // 2. Encrypt the secret value
+  const key = Buffer.from(publicKey.key, "base64");
+  const value = Buffer.from(secretValue);
+  const encryptedBytes = sodium.seal(value, key);
+  const encryptedValue = Buffer.from(encryptedBytes).toString("base64");
+
+  // 3. Create or update the secret
+  await octokit.actions.createOrUpdateRepoSecret({
+    owner,
+    repo,
+    secret_name: secretName,
+    encrypted_value: encryptedValue,
+    key_id: publicKey.key_id,
+  });
+}
+
+// Usage
+injectSecret("OWNER", "REPO", "mysecret", "your_secret_value_here")
+  .then(() => console.log("Secret injected!"))
+  .catch(console.error);
