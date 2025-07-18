@@ -221,8 +221,8 @@ async function processUpload({
     );
     if (finalRun && finalRun.status === "completed") {
       await db.query(
-        `INSERT INTO deployments ("repoId", "workflowRunId", status, conclusion, "startedAt", "completedAt", "htmlUrl")
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO deployments ("repoId", "workflowRunId", status, conclusion, "startedAt", "completedAt", "htmlUrl", "projectUrl")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT ("repoId") DO UPDATE SET
            "workflowRunId" = EXCLUDED."workflowRunId",
            status = EXCLUDED.status,
@@ -238,6 +238,7 @@ async function processUpload({
           finalRun.created_at,
           finalRun.updated_at,
           finalRun.html_url,
+          `https://${subdomain}.frontbase.space`,
         ]
       );
     }

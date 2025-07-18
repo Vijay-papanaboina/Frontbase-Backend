@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS "deployments" (
     "conclusion" text,
     "startedAt" timestamp,
     "completedAt" timestamp,
+    "projectUrl" text UNIQUE,
     "htmlUrl" text,
     "createdAt" timestamp DEFAULT now(),
     "updatedAt" timestamp DEFAULT now(),
