@@ -5,7 +5,8 @@ import {
   deployRepo,
   getDeployments,
   setupRepo,
-} from "../controllers/github.js";
+  getDeploymentStatus,
+} from "../controllers/github/index.js";
 
 const router = express.Router();
 
@@ -17,6 +18,13 @@ router.post("/repos/:repo_id/deploy", authMiddleware, deployRepo);
 
 // GET /api/github/repos/:repo_id/deployments - Get deployment history
 router.get("/repos/:repo_id/deployments", authMiddleware, getDeployments);
+
+// GET /api/github/repos/:repo_id/deployment-status - Get latest deployment status (for polling)
+router.get(
+  "/repos/:repo_id/deployment-status",
+  authMiddleware,
+  getDeploymentStatus
+);
 
 // POST /api/github/repos/:repo_id/setup
 router.post("/repos/:repo_id/setup", authMiddleware, setupRepo);

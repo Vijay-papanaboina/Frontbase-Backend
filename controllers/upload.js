@@ -4,6 +4,7 @@ import { createWriteStream } from "fs";
 import path from "path";
 import yauzl from "yauzl-promise";
 import mime from "mime-types";
+import db from "../db/db.js";
 
 // IMPORTANT: You need to replace <ACCOUNT_ID> with your actual Cloudflare account ID.
 const s3Client = new S3Client({
@@ -66,6 +67,7 @@ export const uploadProject = async (req, res) => {
   console.log("req.file", req.file);
   console.log("req.body", req.body);
   console.log("req.params", req.params);
+  const repoId = req.body.repoId || req.params.repo_id;
 
   const zipFilePath = req.file.path;
   const { projectSlug, userEmail, githubId, ownerLogin, repoName } = req.body;
@@ -81,9 +83,37 @@ export const uploadProject = async (req, res) => {
     });
   }
 
+  // Respond immediately
+  res.status(200).json({ message: "File received, processing in background." });
+
+  // Process the upload in the background
+  processUpload({
+    req,
+    zipFilePath,
+    projectSlug,
+    userEmail,
+    githubId,
+    ownerLogin,
+    repoName,
+    repoId,
+  }).catch((error) => {
+    console.error("Error in background upload processing:", error);
+    // Optionally: notify user/admin or log to external service
+  });
+};
+
+async function processUpload({
+  req,
+  zipFilePath,
+  projectSlug,
+  userEmail,
+  githubId,
+  ownerLogin,
+  repoName,
+  repoId,
+}) {
   const extractPath = path.join("uploads", projectSlug);
   const r2PathPrefix = path.join(ownerLogin, repoName);
-
   try {
     await fs.mkdir(extractPath, { recursive: true });
 
@@ -133,15 +163,86 @@ export const uploadProject = async (req, res) => {
     const r2Prefix = `${ownerLogin}/${repoName}`;
     await setKVMapping(subdomain.toLowerCase(), r2Prefix);
 
-    res.status(200).json({
-      message: "Project deployed successfully!",
-      // TODO: Add deployment URL
-    });
+    // Update the deployment status in the database
+    console.log("Updating deployment status in the database");
+    await db.query(
+      `UPDATE repositories SET "deployStatus" = 'deployed'
+      WHERE "repoName" = $1 AND "ownerLogin" = $2`,
+      [repoName, ownerLogin]
+    );
+
+    // Fetch repo and workflow info for deployments update
+    const repoResult = await db.query(
+      'SELECT * FROM repositories WHERE "repoName" = $1 AND "ownerLogin" = $2',
+      [repoName, ownerLogin]
+    );
+    const repo = repoResult.rows[0];
+    if (!repo) throw new Error("Repository not found for deployments update");
+    const userResult = await db.query(
+      'SELECT "githubAccessToken" FROM users WHERE id = $1',
+      [req.user.userId]
+    );
+    const user = userResult.rows[0];
+    if (!user || !user.githubAccessToken)
+      throw new Error("GitHub access token not found for deployments update");
+    const githubAccessToken = user.githubAccessToken;
+    const workflowId = repo.deployYmlWorkflowId;
+
+    // Poll for final workflow run result
+    async function waitForFinalWorkflowRun(
+      ownerLogin,
+      repoName,
+      workflowId,
+      githubAccessToken
+    ) {
+      const url = `https://api.github.com/repos/${ownerLogin}/${repoName}/actions/workflows/${workflowId}/runs?per_page=1`;
+      let run;
+      for (let i = 0; i < 20; i++) {
+        // Try for up to ~100 seconds
+        const response = await fetch(url, {
+          headers: {
+            authorization: `Bearer ${githubAccessToken}`,
+            accept: "application/vnd.github.v3+json",
+          },
+        });
+        const data = await response.json();
+        run = data.workflow_runs && data.workflow_runs[0];
+        if (run && run.status === "completed") break;
+        await new Promise((res) => setTimeout(res, 5000)); // Wait 5 seconds
+      }
+      return run;
+    }
+
+    const finalRun = await waitForFinalWorkflowRun(
+      ownerLogin,
+      repoName,
+      workflowId,
+      githubAccessToken
+    );
+    if (finalRun && finalRun.status === "completed") {
+      await db.query(
+        `INSERT INTO deployments ("repoId", "workflowRunId", status, conclusion, "startedAt", "completedAt", "htmlUrl")
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT ("repoId") DO UPDATE SET
+           "workflowRunId" = EXCLUDED."workflowRunId",
+           status = EXCLUDED.status,
+           conclusion = EXCLUDED.conclusion,
+           "startedAt" = EXCLUDED."startedAt",
+           "completedAt" = EXCLUDED."completedAt",
+           "htmlUrl" = EXCLUDED."htmlUrl"`,
+        [
+          repo.repoId,
+          finalRun.id,
+          finalRun.status,
+          finalRun.conclusion,
+          finalRun.created_at,
+          finalRun.updated_at,
+          finalRun.html_url,
+        ]
+      );
+    }
   } catch (error) {
-    console.error("Error deploying project:", error);
-    res
-      .status(500)
-      .json({ message: "Failed to deploy project", error: error.message });
+    console.error("Error deploying project (background):", error);
   } finally {
     // Clean up temporary files
     await fs
@@ -151,4 +252,4 @@ export const uploadProject = async (req, res) => {
       .rm(extractPath, { recursive: true, force: true })
       .catch((err) => console.error("Failed to remove extract path:", err));
   }
-};
+}

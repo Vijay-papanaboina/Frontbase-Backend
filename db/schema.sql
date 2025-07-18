@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS "repositories" (
 -- DEPLOYMENTS TABLE
 CREATE TABLE IF NOT EXISTS "deployments" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    "repoId" bigint NOT NULL,
+    "repoId" bigint UNIQUE NOT NULL,
     "workflowRunId" bigint NOT NULL UNIQUE,
     "status" text,
     "conclusion" text,

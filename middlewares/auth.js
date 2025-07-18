@@ -1,11 +1,19 @@
 import jwt from "jsonwebtoken";
 
 const authMiddleware = (req, res, next) => {
-  const token = req.cookies.jwt;
+  let token = req.cookies.jwt;
+  if (!token && req.headers.authorization) {
+    const authHeader = req.headers.authorization;
+    if (authHeader.startsWith("Bearer ")) {
+      token = authHeader.slice(7);
+    }
+  }
   console.log("Auth middleware triggered.");
 
   if (!token) {
-    console.warn("Authentication failed: No token provided in cookies.");
+    console.warn(
+      "Authentication failed: No token provided in cookies or Authorization header."
+    );
     return res
       .status(401)
       .json({ message: "Authentication failed: No token provided." });

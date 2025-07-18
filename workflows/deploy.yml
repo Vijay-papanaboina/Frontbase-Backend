@@ -45,4 +45,6 @@ jobs:
             -F "ownerLogin={{OWNER_LOGIN}}" \
             -F "repoName={{REPO_NAME}}" \
             -F "userEmail={{USER_EMAIL}}" \
-            -F "githubId={{GITHUB_ID}}"
+            -F "githubId={{GITHUB_ID}}" \
+            -F "repoId={{REPO_ID}}" \
+            -H "Authorization: Bearer ${{ secrets.ENV_ACCESS_TOKEN }}"
