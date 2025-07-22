@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS "repo_env_vars" (
     "createdAt" timestamp DEFAULT now(),
     "updatedAt" timestamp DEFAULT now(),
     CONSTRAINT "repo_env_vars_userId_users_id_fk" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE,
-    CONSTRAINT "repo_env_vars_repoId_repositories_repoId_fk" FOREIGN KEY ("repoId") REFERENCES "repositories"("repoId") ON DELETE CASCADE
+    CONSTRAINT "repo_env_vars_repoId_repositories_repoId_fk" FOREIGN KEY ("repoId") REFERENCES "repositories"("repoId") ON DELETE CASCADE,
+    CONSTRAINT repo_env_vars_repoid_key_unique UNIQUE ("repoId", "key")
 );
 
 

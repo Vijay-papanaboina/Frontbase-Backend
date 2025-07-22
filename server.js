@@ -6,10 +6,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 import db from "./db/db.js";
-import uploadRouter from "./routes/upload.js";
-import githubRoutes from "./routes/github.js";
-import authRoutes from "./routes/auth.js";
-import envsRoutes from "./routes/envs.js";
+import routes from "./routes/index.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -40,26 +37,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Initialize database schema (for PostgreSQL)
-// const schemaPath = path.join(__dirname, "db", "schema.sql");
-// const schemaSql = fs.readFileSync(schemaPath, "utf8");
-
-// // Use pool.query for PostgreSQL schema initialization
-// db.query(schemaSql)
-//   .then(() => console.log("PostgreSQL schema initialized."))
-//   .catch((err) => console.error("Error initializing PostgreSQL schema:", err));
-
-// Mount the upload router
-app.use("/api/upload", uploadRouter);
-
-// Mount the GitHub routes
-app.use("/api/github", githubRoutes);
-
-// Mount the auth routes
-app.use("/api/auth", authRoutes);
-
-// Mount the envs routes
-app.use("/api/envs", envsRoutes);
+// Mount all routes
+app.use(routes);
 
 app.get("/", (req, res) => {
   res.status(200).send("Backend server is running!");

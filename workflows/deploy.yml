@@ -4,6 +4,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  NODE_VERSION: "18"
+  CI: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -14,11 +18,18 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: "18"
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
 
       - name: Fetch environment variables
+        id: fetch-env
         run: |
-          curl -s -f -X GET "{{BACKEND_URL}}/api/envs/{{GITHUB_ID}}/{{REPO_NAME}}" -H "Authorization: Bearer ${{ secrets.ENV_ACCESS_TOKEN }}" -o envs.json
+          RESPONSE=$(curl -s -f -w "%{http_code}" -X GET "{{BACKEND_URL}}/api/environment/variables/{{REPO_ID}}" -H "Authorization: Bearer ${{ secrets.ENV_ACCESS_TOKEN }}" -o envs.json)
+
+          if [ "$RESPONSE" != "200" ]; then
+            echo "::error::Failed to fetch environment variables. Status code: $RESPONSE"
+            exit 1
+          fi
 
           if [ -s envs.json ] && [ "$(cat envs.json)" != "{}" ]; then
             echo "Creating .env file from fetched variables."
@@ -26,20 +37,47 @@ jobs:
             echo "Generated .env file:"
             cat .env
           else
-            echo "No environment variables fetched or file is empty. Skipping .env creation."
+            echo "No environment variables found. Skipping .env creation."
           fi
 
       - name: Install dependencies
-        run: npm install
+        id: install
+        run: |
+          if [ -f "package-lock.json" ]; then
+            echo "Installing dependencies with npm ci..."
+            npm ci
+          else
+            echo "Installing dependencies with npm install..."
+            npm install
+          fi
 
       - name: Build project
-        run: {{BUILD_COMMAND}}
-      - name: Zip dist folder
-        run: zip -r dist.zip ./{{BUILD_DIR}}
+        id: build
+        run: |
+          echo "Running build command: {{BUILD_COMMAND}}"
+          {{BUILD_COMMAND}}
+
+      - name: Verify build output
+        id: verify
+        run: |
+          if [ ! -d "./{{BUILD_DIR}}" ]; then
+            echo "::error::Build directory not found: {{BUILD_DIR}}"
+            exit 1
+          fi
+          echo "Build directory verified: {{BUILD_DIR}}"
+
+      - name: Zip build output
+        id: zip
+        run: |
+          zip -r dist.zip ./{{BUILD_DIR}}
+          echo "Build output zipped successfully"
 
       - name: Upload to backend
+        id: upload
         run: |
-          curl -X POST {{BACKEND_URL}}/api/upload \
+          echo "Uploading build to backend..."
+          RESPONSE=$(curl -s -f -w "%{http_code}" -X POST \
+            "{{BACKEND_URL}}/api/upload" \
             -F "file=@dist.zip" \
             -F "projectSlug={{PROJECT_SLUG}}" \
             -F "ownerLogin={{OWNER_LOGIN}}" \
@@ -47,4 +85,13 @@ jobs:
             -F "userEmail={{USER_EMAIL}}" \
             -F "githubId={{GITHUB_ID}}" \
             -F "repoId={{REPO_ID}}" \
-            -H "Authorization: Bearer ${{ secrets.ENV_ACCESS_TOKEN }}"
+            -H "Authorization: Bearer ${{ secrets.ENV_ACCESS_TOKEN }}" \
+            -H "Accept: application/json" \
+            -o response.txt)
+
+          if [ "$RESPONSE" != "200" ]; then
+            echo "::error::Failed to upload build. Status code: $RESPONSE"
+            cat response.txt
+            exit 1
+          fi
+          echo "Build uploaded successfully"

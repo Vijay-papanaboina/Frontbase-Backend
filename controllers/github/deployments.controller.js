@@ -1,6 +1,6 @@
 import db from "../../db/db.js";
 
-export const deployRepo = async (req, res) => {
+export const deployRepository = async (req, res) => {
   const { repo_id: repoId } = req.params;
 
   try {

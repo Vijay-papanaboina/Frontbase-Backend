@@ -1,4 +1,4 @@
-const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 const r2Client = new S3Client({
   region: "auto",
@@ -9,7 +9,7 @@ const r2Client = new S3Client({
   },
 });
 
-async function uploadFileToR2(key, body, contentType) {
+export async function uploadFileToR2(key, body, contentType) {
   const command = new PutObjectCommand({
     Bucket: process.env.R2_BUCKET_NAME,
     Key: key,
@@ -28,5 +28,3 @@ async function uploadFileToR2(key, body, contentType) {
     throw error;
   }
 }
-
-module.exports = { uploadFileToR2 };
