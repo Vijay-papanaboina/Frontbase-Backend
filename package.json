@@ -10,8 +10,7 @@
     "seed": "node scripts/seed.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio",
-    "cleanup": "node scripts/cleanup-uploads.js"
+    "db:studio": "drizzle-kit studio"
   },
   "keywords": [],
   "author": "",
